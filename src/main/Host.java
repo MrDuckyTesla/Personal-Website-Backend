@@ -187,6 +187,18 @@ public class Host implements AutoCloseable {
 			exchange.close();
 		});
 		
+		this.server.createContext("/api/auth", exchange -> {
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
+			Map<String, String> params = this.getParams(body);
+			User user = this.isAuthenticated(params);
+			int code = user == null? 401 : 200;
+			
+			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+			exchange.sendResponseHeaders(code, -1);
+			exchange.close();
+		});
+		
 		this.server.createContext("/api/posts", exchange -> {
 			
 		});
