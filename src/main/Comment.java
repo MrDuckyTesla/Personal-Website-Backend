@@ -1,3 +1,5 @@
+package main;
+
 import engine.data.serializations.FastSerializable;
 import engine.data.util.ByteHelper;
 

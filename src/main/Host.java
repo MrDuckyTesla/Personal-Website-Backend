@@ -1,3 +1,5 @@
+package main;
+
 import java.io.IOException;
 
 import com.sun.net.httpserver.HttpServer;
@@ -42,17 +44,20 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/users", exchange -> {
+			
 			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
-			Map<String, String> params = this.getParams(body); 
-			String response = ""; int code = 200; User user;
+			Map<String, String> params = this.getParams(body);
+			String response = ""; int code = 409; User user;
 			
-			if (!this.userExists(params) && params.containsKey("username") && params.containsKey("password")) {
-				user = new User(params.get("username"), params.get("password"));
-				this.verify.put(params.get("username"), user);
-				State state = new State(user); this.states.put(state.getID(), state);
-				response = state.getID();
-			} else {code = 409;}
+			if (this.verifyReal(params.get("real"))) {
+				if (!this.userExists(params) && params.containsKey("username") && params.containsKey("password")) {
+					user = new User(params.get("username"), params.get("password"));
+					this.verify.put(params.get("username"), user);
+					State state = new State(user); this.states.put(state.getID(), state);
+					response = state.getID(); code = 200;
+				}
+			}
 			
 			byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
 			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
@@ -63,19 +68,19 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/github", exchange -> {
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
+			Map<String, String> params = this.getParams(body); 
+			User user; int code = 500;
+			
 			try {
-				String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
-				if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
-				Map<String, String> params = this.getParams(body); 
-				String response = ""; int code = 200; User user;
-				
 				String githubCode = params.get("code");
 				State state = this.states.get(params.get("state"));
 				
 				user = state.getUser();
 				
-				String clientID = "Ov23ligb9LkTZoqhCuwF";
-				String clientSecret = new String(Files.readAllBytes(Paths.get("src/.secret.txt")), StandardCharsets.UTF_8);
+				String clientID = "Ov23liQOvNxULB7rtaVH";
+				String clientSecret = new String(Files.readAllBytes(Paths.get("gitsecret.txt")), StandardCharsets.UTF_8);
 				
 				String bodyGit =
 					"client_id=" + URLEncoder.encode(clientID, StandardCharsets.UTF_8) +
@@ -148,31 +153,32 @@ public class Host implements AutoCloseable {
 						 this.users.close();
 						 
 						 code = 302;
-					
-						 exchange.getResponseHeaders().set("Location", "https://mrduckytesla.com/");
-						 exchange.sendResponseHeaders(code, -1);
-						 exchange.close();
 					}
 				} 
 				catch (InterruptedException e) {e.printStackTrace();}
 			} catch(Exception e) {e.printStackTrace();}
+			exchange.getResponseHeaders().set("Location", "https://mrduckytesla.com/");
+			exchange.sendResponseHeaders(code, -1);
+			exchange.close();
 		});
 		
 		this.server.createContext("/api/login", exchange -> {
 			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
-			String response = ""; int code = 200; User user;
+			String response = ""; int code = 401; User user;
 			
-			if (this.isAuthenticated(params) == null) {
-				user = this.canLogIn(params);
-				if (user != null) {
-					user.createAuthKey();
-					response = user.getUserAuth();
-					users.put(user.getUsername(), user);
-				}
-				else {code = 401;}
-			} 
+			if (this.verifyReal(params.get("real"))) {
+				if (this.isAuthenticated(params) == null) {
+					user = this.canLogIn(params);
+					if (user != null) {
+						user.createAuthKey();
+						response = user.getUserAuth();
+						users.put(user.getUsername(), user);
+						code = 200;
+					}
+				} 
+			}
 			
 			byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
 			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
@@ -209,6 +215,22 @@ public class Host implements AutoCloseable {
 	private boolean userExists(Map<String, String> params) {
 		try {return params.containsKey("username") && (users.get(params.get("username")) != null || verify.get(params.get("username")) != null);} 
 		catch (IOException e) {return false;}
+	}
+	
+	private boolean verifyReal(String token) {
+		try {
+			String secret = new String(Files.readAllBytes(Paths.get("cldsecret.txt")),StandardCharsets.UTF_8);
+			String body = "secret=" + URLEncoder.encode(secret, StandardCharsets.UTF_8) + "&response=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+	
+		    HttpRequest request = HttpRequest.newBuilder()
+		    	.uri(URI.create("https://challenges.cloudflare.com/turnstile/v0/siteverify"))
+		    	.header("Content-Type", "application/x-www-form-urlencoded")
+		    	.POST(HttpRequest.BodyPublishers.ofString(body))
+		    	.build();
+	
+			HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+			return response.body().contains("\"success\":true");
+		} catch(Exception e) {return false;}
 	}
 	
 	private Map<String, String> getParams(String body)  {

@@ -1,3 +1,5 @@
+package main;
+
 import java.nio.file.*;
 
 import java.io.IOException;
@@ -62,7 +64,12 @@ public class ChunkedDB<T extends FastSerializable<T>> implements AutoCloseable {
 	}
 	
 	public void emptyFolder() throws IOException {
-		Files.delete(Path.of(this.location));
+		if (Files.exists(Path.of(this.location))) {
+			Files.list(Path.of(this.location)).forEach(path -> {
+				try {Files.delete(path);} 
+				catch (IOException e) {e.printStackTrace();} 
+			}); 
+		}
 	}
 
 	@Override

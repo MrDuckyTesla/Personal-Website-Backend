@@ -1,1 +1,4 @@
-src/.secret.txt
+bin/secret.txt
+bin/main/secret.txt
+gitsecret.txt
+cldsecret.txt

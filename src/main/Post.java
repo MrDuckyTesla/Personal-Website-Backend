@@ -1,3 +1,5 @@
+package main;
+
 import java.util.UUID;
 
 import engine.data.serializations.FastSerializable;

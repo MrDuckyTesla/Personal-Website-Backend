@@ -1,14 +1,16 @@
+package main;
+
 import java.util.Map;
 import java.util.TreeMap;
 
 import engine.data.serializations.FastSerializable;
 import engine.data.util.ByteHelper;
 
-public class Chunk<T extends FastSerializable<T>> implements FastSerializable<Chunk<T>> {
+public class Database<T extends FastSerializable<T>> {
 	
 	private final TreeMap<String, T> database;
 
-	public Chunk() {
+	public Database() {
 		this.database = new TreeMap<String, T>();
 	}
 	
@@ -36,7 +38,6 @@ public class Chunk<T extends FastSerializable<T>> implements FastSerializable<Ch
 		return this.database.lastKey();
 	}
 
-	@Override
 	public byte[] serialize() {
 		byte[][] bytes = new byte[database.size()][]; int i = 0;
 		for (Map.Entry<String, T> entry : database.entrySet()) {
@@ -44,18 +45,11 @@ public class Chunk<T extends FastSerializable<T>> implements FastSerializable<Ch
 		} return ByteHelper.mergeBytes(bytes);
 	}
 
-	@Override
 	@SuppressWarnings("unchecked")
-	public Chunk<T> deserialize(ByteHelper b, FastSerializable<?>... prototypes) {
-		Chunk<T> d = new Chunk<>();
+	public Database<T> deserialize(ByteHelper b, FastSerializable<?>... prototypes) {
+		Database<T> d = new Database<>();
 		while (b.hasRemaining()) {d.database.put(b.readString(), b.readObject((T) prototypes[0]));}
 		return d;
-	}
-
-	@Override
-	@SuppressWarnings("unchecked")
-	public Chunk<T>[] getProtoArray(int length) {
-		return new Chunk[length];
 	}
 
 }
