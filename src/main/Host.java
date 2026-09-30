@@ -55,7 +55,6 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/users", exchange -> {
-			
 			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body);
@@ -330,7 +329,7 @@ public class Host implements AutoCloseable {
 	public void close() throws IOException {
 		this.server.stop(0); this.users.close(); 
 		this.verify.close(); this.posts.close();
-		this.states.close();
+		this.states.close(); this.gitIDs.close();
 		try {this.verify.emptyFolder();}
 		catch(IOException e) {e.printStackTrace();}
 		try {this.states.emptyFolder();}
