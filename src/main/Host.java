@@ -3,6 +3,9 @@ package main;
 import java.io.IOException;
 
 import com.sun.net.httpserver.HttpServer;
+
+import engine.data.util.ByteHelper;
+
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -12,6 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +29,7 @@ public class Host implements AutoCloseable {
 	private final ChunkedDB<State> states;
 	private final ChunkedDB<StringSerializeWrapper> gitIDs;
 	private final HttpServer server;
+	private int postnum = 0;
 
 	public Host(int port) throws IOException {
 		User proto = new User("", "");
@@ -34,6 +39,10 @@ public class Host implements AutoCloseable {
 		this.verify = new ChunkedDB<>(64, "data/verify/users/", proto);
 		this.states = new ChunkedDB<>(64, "data/verify/states/", new State(proto), proto);
 		this.server = HttpServer.create(new InetSocketAddress(port), 0);
+		
+		if (Files.exists(Path.of("data/postnum.mdt"))) {
+			this.postnum = new ByteHelper(Files.readAllBytes(Path.of("data/postnum.mdt"))).readInt();
+		}
 		
 		this.server.createContext("/api/test", exchange -> {
 			String response = "hello world";
@@ -195,18 +204,69 @@ public class Host implements AutoCloseable {
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body);
 			User user = this.isAuthenticated(params);
-			int code = user == null? 401 : 200;
-			
-			System.out.println(user.getUsername());
-			System.out.println(user.getUserAuth());
 			
 			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-			exchange.sendResponseHeaders(code, -1);
+			exchange.sendResponseHeaders(user == null? 401 : 200, -1);
 			exchange.close();
 		});
 		
-		this.server.createContext("/api/posts", exchange -> {
+		this.server.createContext("/api/post", exchange -> {
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
+			Map<String, String> params = this.getParams(body); 
+			String response = ""; int code = 401; User user;
 			
+			try {
+				if (this.verifyReal(params.get("real"))) {
+					user = this.isAuthenticated(params);
+					if (user != null) {
+						String title = params.get("title"), content = params.get("content");
+						if (title != null && content != null) {
+							String id = String.valueOf(this.postnum++);
+							this.posts.put(id, new Post(user, title, content));
+							code = 200; response = id;
+						} 
+					} 
+				} 
+			} catch(Exception e) {e.printStackTrace();}
+			
+			byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+			exchange.sendResponseHeaders(code, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
+		});
+		
+		this.server.createContext("/api/post/get", exchange -> {
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
+			Map<String, String> params = this.getParams(body); 
+			String response = ""; int code = 401; User user;
+			
+			try {
+				user = this.isAuthenticated(params);
+				if (user != null) {
+					String id = params.get("num");
+					if (id != null) {
+						Post post = this.posts.get(id);
+						if (post != null) {response = post.toString(); code = 200;} 
+					}
+				} 
+			} catch(Exception e) {e.printStackTrace();}
+			
+			byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+			exchange.sendResponseHeaders(code, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
+		});
+		
+		this.server.createContext("/api/post/count", exchange -> {			
+			byte[] bytes = String.valueOf(this.postnum).getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+			exchange.sendResponseHeaders(200, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
 		});
 	}
 	
@@ -275,6 +335,7 @@ public class Host implements AutoCloseable {
 		catch(IOException e) {e.printStackTrace();}
 		try {this.states.emptyFolder();}
 		catch(IOException e) {e.printStackTrace();}
+		Files.write(Path.of("data/postnum.mdt"), ByteHelper.toBytes(this.postnum));
 	}
 
 	public static void main(String[] args) {

@@ -16,7 +16,7 @@ public class Post implements FastSerializable<Post> {
 	private final long timeStamp;
 
 	public Post(User user, String title, String message) {
-		this.userID = user.getUserID();
+		this.userID = user.getUsername();
 		this.title = title;
 		this.message = message;
 		this.id = UUID.randomUUID().toString();
@@ -35,6 +35,11 @@ public class Post implements FastSerializable<Post> {
 	public String getTitle() {return this.title;}
 	public String getMessage() {return this.message;}
 	public long getTimeStamp() {return this.timeStamp;}
+	
+	@Override
+	public String toString() {
+		return "title="+title+"&message="+message+"&author="+userID;
+	}
 
 	@Override
 	public byte[] serialize() {
