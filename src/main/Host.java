@@ -23,12 +23,14 @@ public class Host implements AutoCloseable {
 	private final ChunkedDB<Post> posts;
 	private final ChunkedDB<User> verify;
 	private final ChunkedDB<State> states;
+	private final ChunkedDB<StringSerializeWrapper> gitIDs;
 	private final HttpServer server;
 
 	public Host(int port) throws IOException {
 		User proto = new User("", "");
-		this.users = new ChunkedDB<>(128, "data/users/", proto);
 		this.posts = new ChunkedDB<>(512, "data/posts/", new Post(proto, "", ""));
+		this.users = new ChunkedDB<>(128, "data/users/", proto);
+		this.gitIDs = new ChunkedDB<>(128, "data/links/github/", new StringSerializeWrapper(""));
 		this.verify = new ChunkedDB<>(64, "data/verify/users/", proto);
 		this.states = new ChunkedDB<>(64, "data/verify/states/", new State(proto), proto);
 		this.server = HttpServer.create(new InetSocketAddress(port), 0);
@@ -149,6 +151,7 @@ public class Host implements AutoCloseable {
 						 System.out.println("Removed state");
 	
 						 this.users.put(user.getUsername(), user);
+						 this.gitIDs.put(user.getUsername(), new StringSerializeWrapper(user.getGithubID()));
 						 System.out.println("Added to users");
 						 this.users.close();
 						 
@@ -194,6 +197,9 @@ public class Host implements AutoCloseable {
 			User user = this.isAuthenticated(params);
 			int code = user == null? 401 : 200;
 			
+			System.out.println(user.getUsername());
+			System.out.println(user.getUserAuth());
+			
 			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
 			exchange.sendResponseHeaders(code, -1);
 			exchange.close();
@@ -205,11 +211,11 @@ public class Host implements AutoCloseable {
 	}
 	
 	private User isAuthenticated(Map<String, String> params) {
-		if (params.containsKey("auth") && params.containsKey("username")) {
+		if (params.containsKey("authkey") && params.containsKey("username")) {
 			User user;
 			try {
 				user = users.get(params.get("username"));
-				if (user != null && user.authKeyMatch(params.get("auth"))) {return user;}
+				if (user != null && user.authKeyMatch(params.get("authkey"))) {return user;}
 			} catch (IOException e) {return null;}
 		} return null;
 	}
@@ -225,7 +231,7 @@ public class Host implements AutoCloseable {
 	}
 	
 	private boolean userExists(Map<String, String> params) {
-		try {return params.containsKey("username") && (users.get(params.get("username")) != null || verify.get(params.get("username")) != null);} 
+		try {return params.containsKey("username") && (users.get(params.get("username")) != null || verify.get(params.get("username")) != null || gitIDs.get(params.get("username")) != null);} 
 		catch (IOException e) {return false;}
 	}
 	

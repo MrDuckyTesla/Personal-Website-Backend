@@ -53,7 +53,7 @@ public class User implements FastSerializable<User> {
 	
 	private byte[] hashPw(String password, byte[] salt) throws RuntimeException {
 		try {
-			PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 600_000, 256);
+			PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 1_000_000, 256);
 			byte[] hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
 			return ByteHelper.mergeBytes(salt, hash);
 		} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {e.printStackTrace();}
