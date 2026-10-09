@@ -7,7 +7,7 @@ import java.io.IOException;
 import engine.data.serializations.FastSerializable;
 import engine.data.util.ByteHelper;
 
-public class ChunkedDB<T extends FastSerializable<T>> implements AutoCloseable {
+public class ChunkedDB<T extends FastSerializable<T>> implements AutoCloseable, FastSerializable<ChunkedDB<T>> {
 	
 	private final FastSerializable<?>[] prototypes;
 	private final String location;
@@ -71,10 +71,27 @@ public class ChunkedDB<T extends FastSerializable<T>> implements AutoCloseable {
 			}); 
 		}
 	}
+	
+	public String getLocation() {return this.location;}
 
 	@Override
 	public void close() throws IOException {
 		if (this.currentLoadedChunk != -1) {this.unloadChunk();}
+	}
+
+	@Override
+	public byte[] serialize() {
+		return ByteHelper.mergeBytes(ByteHelper.toBytes(totalChunks), ByteHelper.toBytes(location));
+	}
+
+	@Override
+	public ChunkedDB<T> deserialize(ByteHelper b, FastSerializable<?>... prototypes) {
+		return new ChunkedDB<T>(b.readInt(), b.readString(), prototypes);
+	}
+
+	@Override @SuppressWarnings("unchecked")
+	public ChunkedDB<T>[] getProtoArray(int length) {
+		return new ChunkedDB[length];
 	}
 
 }

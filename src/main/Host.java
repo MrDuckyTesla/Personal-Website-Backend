@@ -24,24 +24,32 @@ import java.util.Scanner;
 public class Host implements AutoCloseable {
 	
 	private final ChunkedDB<User> users;
-	private final ChunkedDB<Post> posts;
+	private final ChunkedDB<Post>[] posts;
 	private final ChunkedDB<User> verify;
 	private final ChunkedDB<State> states;
 	private final ChunkedDB<StringSerializeWrapper> gitIDs;
 	private final HttpServer server;
-	private int postnum = 0;
+	private int[] postnum = new int[4];
 
+	@SuppressWarnings("resource")
 	public Host(int port) throws IOException {
-		User proto = new User("", "");
-		this.posts = new ChunkedDB<>(512, "data/posts/", new Post(proto, "", ""));
-		this.users = new ChunkedDB<>(128, "data/users/", proto);
+		User protoUser = new User("", "");
+		Post protoPost = new Post(protoUser, "", "", "");
+		
+		this.posts = new ChunkedDB<Post>(-1, "", protoPost).getProtoArray(4);
+		this.posts[0] = new ChunkedDB<>(512, "data/posts/official/", protoPost);
+		this.posts[1] = new ChunkedDB<>(512, "data/posts/main", protoPost);
+		this.posts[2] = new ChunkedDB<>(512, "data/posts/politics/", protoPost);
+		this.posts[3] = new ChunkedDB<>(512, "data/posts/help/", protoPost);
+		
+		this.users = new ChunkedDB<>(128, "data/users/", protoUser);
 		this.gitIDs = new ChunkedDB<>(128, "data/links/github/", new StringSerializeWrapper(""));
-		this.verify = new ChunkedDB<>(64, "data/verify/users/", proto);
-		this.states = new ChunkedDB<>(64, "data/verify/states/", new State(proto), proto);
+		this.verify = new ChunkedDB<>(64, "data/verify/users/", protoUser);
+		this.states = new ChunkedDB<>(64, "data/verify/states/", new State(protoUser), protoUser);
 		this.server = HttpServer.create(new InetSocketAddress(port), 0);
 		
 		if (Files.exists(Path.of("data/postnum.mdt"))) {
-			this.postnum = new ByteHelper(Files.readAllBytes(Path.of("data/postnum.mdt"))).readInt();
+			this.postnum = new ByteHelper(Files.readAllBytes(Path.of("data/postnum.mdt"))).readIntArr();
 		}
 		
 		this.server.createContext("/api/test", exchange -> {
@@ -55,7 +63,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/users", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body);
 			String response = ""; int code = 409; User user;
@@ -78,7 +86,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/github", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
 			User user; int code = 500;
@@ -142,25 +150,12 @@ public class Host implements AutoCloseable {
 								 user.setEmail(i.split("\"email\":\"")[1].split("\"")[0]);
 							 }
 						 }
-						 System.out.println("GITHUB TOKEN RESPONSE");
-						 System.out.println(responseGit.statusCode());
-						 System.out.println(responseGit.body());
 						 
-	//					 this.verify.remove(user.getUsername());
-	//					 this.states.remove(state.getID());
-	//					 this.users.put(user.getUsername(), user);
-						 System.out.println("GitHub ID: " + user.getGithubID());
-						 System.out.println("Email: " + user.getEmail());
-	
 						 this.verify.remove(user.getUsername());
-						 System.out.println("Removed from verify");
-	
 						 this.states.remove(state.getID());
-						 System.out.println("Removed state");
-	
 						 this.users.put(user.getUsername(), user);
 						 this.gitIDs.put(user.getUsername(), new StringSerializeWrapper(user.getGithubID()));
-						 System.out.println("Added to users");
+						 System.out.println("Added " + user.getUsername() + " to users");
 						 this.users.close();
 						 
 						 code = 302;
@@ -174,7 +169,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/login", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
 			String response = ""; int code = 401; User user;
@@ -199,7 +194,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/auth", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body);
 			User user = this.isAuthenticated(params);
@@ -210,7 +205,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/post", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
 			String response = ""; int code = 401; User user;
@@ -219,11 +214,16 @@ public class Host implements AutoCloseable {
 				if (this.verifyReal(params.get("real"))) {
 					user = this.isAuthenticated(params);
 					if (user != null) {
-						String title = params.get("title"), content = params.get("content");
-						if (title != null && content != null) {
-							String id = String.valueOf(this.postnum++);
-							this.posts.put(id, new Post(user, title, content));
-							code = 200; response = id;
+						String title = params.get("title"), content = params.get("content"), category = params.get("cat");
+						if (title != null && content != null && category != null) {
+							if (title.length() <= 100 && content.length() <= 1000) {
+								int cat = Integer.parseInt(category);
+								if (cat != 0 || user.getPowerLevel() > 0) {
+									String id = String.valueOf(this.postnum[cat]++);
+									this.posts[cat].put(id, new Post(user, title, content, this.posts[cat].getLocation()));
+									code = 200; response = id;
+								}
+							}
 						} 
 					} 
 				} 
@@ -237,7 +237,7 @@ public class Host implements AutoCloseable {
 		});
 		
 		this.server.createContext("/api/post/get", exchange -> {
-			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8); 
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
 			String response = ""; int code = 401; User user;
@@ -246,8 +246,9 @@ public class Host implements AutoCloseable {
 				user = this.isAuthenticated(params);
 				if (user != null) {
 					String id = params.get("num");
+					String category = params.get("cat");
 					if (id != null) {
-						Post post = this.posts.get(id);
+						Post post = this.posts[Integer.parseInt(category)].get(id);
 						if (post != null) {response = post.toString(); code = 200;} 
 					}
 				} 
@@ -260,10 +261,26 @@ public class Host implements AutoCloseable {
 			exchange.close();
 		});
 		
-		this.server.createContext("/api/post/count", exchange -> {			
-			byte[] bytes = String.valueOf(this.postnum).getBytes(StandardCharsets.UTF_8);
+		this.server.createContext("/api/post/count", exchange -> {	
+			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
+			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
+			Map<String, String> params = this.getParams(body); 
+			byte[] bytes = new byte[] {}; int code = 400; 
+			
+			String category = params.get("cat"); 
+
+			try {
+				if (category != null) {
+					int cat = Integer.parseInt(category);
+					if (cat >= 0 && cat < this.posts.length) {
+						bytes = String.valueOf(this.postnum[cat]).getBytes(StandardCharsets.UTF_8);
+						code = 200;
+					}
+				}
+			} catch(Exception e) {e.printStackTrace();}
+			
 			exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-			exchange.sendResponseHeaders(200, bytes.length);
+			exchange.sendResponseHeaders(code, bytes.length);
 			exchange.getResponseBody().write(bytes);
 			exchange.close();
 		});
@@ -328,8 +345,8 @@ public class Host implements AutoCloseable {
 	@Override
 	public void close() throws IOException {
 		this.server.stop(0); this.users.close(); 
-		this.verify.close(); this.posts.close();
-		this.states.close(); this.gitIDs.close();
+		this.verify.close(); this.states.close(); this.gitIDs.close();
+		for (ChunkedDB<Post> p : this.posts) {p.close();}
 		try {this.verify.emptyFolder();}
 		catch(IOException e) {e.printStackTrace();}
 		try {this.states.emptyFolder();}
@@ -345,7 +362,11 @@ public class Host implements AutoCloseable {
 			
 			Scanner scn = new Scanner(System.in);
 			
-			while (!scn.nextLine().equalsIgnoreCase("stop")) {}
+			String cmd = scn.nextLine();
+			while (!cmd.equalsIgnoreCase("stop")) {
+				// Add more commands here
+				cmd = scn.nextLine();
+			}
 			
 			scn.close(); host.close();
 		} 

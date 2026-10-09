@@ -85,6 +85,7 @@ public class User implements FastSerializable<User> {
 	public String getUserID() {return this.id;}
 	public String getUserAuth() {return this.authKey;}
 	public String getGithubID() {return this.githubID;}
+	public short getPowerLevel() {return this.powerLevel;}
 	
 	public void setGithubID(String githubID) {
 		this.githubID = githubID;
@@ -134,6 +135,6 @@ public class User implements FastSerializable<User> {
 		return new User[length];
 	}
 	
-	public String toString() {return "username=" + this.username + "&email=" + this.email;}
+	public String toString() {return "username=" + this.username + "&email=" + this.email + "&git=" + this.githubID;}
 
 }

@@ -7,28 +7,30 @@ import engine.data.util.ByteHelper;
 
 public class Post implements FastSerializable<Post> {
 	
+	private final ChunkedDB<Comment> comments;
 	private final String userID;
-	
 	private final String id;
 	private final String title;
 	private final String message;
 	
 	private final long timeStamp;
 
-	public Post(User user, String title, String message) {
+	public Post(User user, String title, String message, String filelocation) {
 		this.userID = user.getUsername();
 		this.title = title;
 		this.message = message;
 		this.id = UUID.randomUUID().toString();
 		this.timeStamp = System.currentTimeMillis();
+		this.comments = new ChunkedDB<>(64, filelocation, new Comment(new User("", ""), "", ""));
 	}
 	
-	public Post(String userID, String title, String message, String id, long timestamp) {
+	public Post(String userID, String title, String message, String id, long timestamp, ChunkedDB<Comment> comments) {
 		this.userID = userID;
 		this.title = title;
 		this.message = message;
 		this.id = id;
 		this.timeStamp = timestamp;
+		this.comments = comments;
 	}
 	
 	public String getID() {return this.id;}
@@ -38,7 +40,7 @@ public class Post implements FastSerializable<Post> {
 	
 	@Override
 	public String toString() {
-		return "title="+title+"&message="+message+"&author="+userID;
+		return "title="+title+"&message="+message+"&author="+userID+"&time="+timeStamp;
 	}
 
 	@Override
@@ -48,7 +50,8 @@ public class Post implements FastSerializable<Post> {
 			ByteHelper.toBytes(this.title),
 			ByteHelper.toBytes(this.message),
 			ByteHelper.toBytes(this.id),
-			ByteHelper.toBytes(this.timeStamp)
+			ByteHelper.toBytes(this.timeStamp),
+			ByteHelper.toBytes(this.comments)
 		);
 	}
 
@@ -59,7 +62,12 @@ public class Post implements FastSerializable<Post> {
 			b.readString(), 
 			b.readString(), 
 			b.readString(), 
-			b.readLong()
+			b.readLong(), 
+			b.readObject(
+				new ChunkedDB<>(
+					-1, "", new Comment(new User("", ""), "", "")
+				)
+			)
 		);
 	}
 
