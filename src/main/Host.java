@@ -38,7 +38,7 @@ public class Host implements AutoCloseable {
 		
 		this.posts = new ChunkedDB<Post>(-1, "", protoPost).getProtoArray(4);
 		this.posts[0] = new ChunkedDB<>(512, "data/posts/official/", protoPost);
-		this.posts[1] = new ChunkedDB<>(512, "data/posts/main", protoPost);
+		this.posts[1] = new ChunkedDB<>(512, "data/posts/main/", protoPost);
 		this.posts[2] = new ChunkedDB<>(512, "data/posts/politics/", protoPost);
 		this.posts[3] = new ChunkedDB<>(512, "data/posts/help/", protoPost);
 		
