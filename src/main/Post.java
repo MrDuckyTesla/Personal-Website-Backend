@@ -21,7 +21,7 @@ public class Post implements FastSerializable<Post> {
 		this.message = message;
 		this.id = UUID.randomUUID().toString();
 		this.timeStamp = System.currentTimeMillis();
-		this.comments = new ChunkedDB<>(64, filelocation+"comments/", new Comment(new User("", ""), "", ""));
+		this.comments = new ChunkedDB<>(64, filelocation+"/comments/"+this.id+"/", new Comment(new User("", ""), "", ""));
 	}
 	
 	public Post(String userID, String title, String message, String id, long timestamp, ChunkedDB<Comment> comments) {
