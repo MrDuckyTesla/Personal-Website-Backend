@@ -12,11 +12,13 @@ public class Post implements FastSerializable<Post> {
 	private final String id;
 	private final String title;
 	private final String message;
+	private final String gitID;
 	
 	private final long timeStamp;
 
 	public Post(User user, String title, String message, String filelocation) {
 		this.userID = user.getUsername();
+		this.gitID = user.getGithubID();
 		this.title = title;
 		this.message = message;
 		this.id = UUID.randomUUID().toString();
@@ -24,8 +26,9 @@ public class Post implements FastSerializable<Post> {
 		this.comments = new ChunkedDB<>(64, filelocation+"/comments/"+this.id+"/", new Comment(new User("", ""), "", ""));
 	}
 	
-	public Post(String userID, String title, String message, String id, long timestamp, ChunkedDB<Comment> comments) {
+	public Post(String userID, String title, String message, String gitID, String id, long timestamp, ChunkedDB<Comment> comments) {
 		this.userID = userID;
+		this.gitID = gitID;
 		this.title = title;
 		this.message = message;
 		this.id = id;
@@ -40,7 +43,7 @@ public class Post implements FastSerializable<Post> {
 	
 	@Override
 	public String toString() {
-		return "title="+title+"&message="+message+"&author="+userID+"&time="+timeStamp;
+		return "title="+title+"&message="+message+"&author="+userID+"&time="+timeStamp+"&git="+this.gitID;
 	}
 
 	@Override
@@ -49,6 +52,7 @@ public class Post implements FastSerializable<Post> {
 			ByteHelper.toBytes(this.userID),
 			ByteHelper.toBytes(this.title),
 			ByteHelper.toBytes(this.message),
+			ByteHelper.toBytes(this.gitID),
 			ByteHelper.toBytes(this.id),
 			ByteHelper.toBytes(this.timeStamp),
 			ByteHelper.toBytes(this.comments)
@@ -62,6 +66,7 @@ public class Post implements FastSerializable<Post> {
 			b.readString(), 
 			b.readString(), 
 			b.readString(), 
+			b.readString(),
 			b.readLong(), 
 			b.readObject(
 				new ChunkedDB<>(
