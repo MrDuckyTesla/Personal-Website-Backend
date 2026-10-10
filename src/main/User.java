@@ -94,6 +94,10 @@ public class User implements FastSerializable<User> {
 	public void setEmail(String email) {
 		this.email = email;
 	}
+	
+	public void setPowerLevel(short power) {
+		this.powerLevel = power;
+	}
 
 	@Override
 	public byte[] serialize() {

@@ -240,18 +240,18 @@ public class Host implements AutoCloseable {
 			String body = new String(exchange.getRequestBody().readNBytes(10000), StandardCharsets.UTF_8); 
 			if (body.length() == 0) {body = exchange.getRequestURI().getQuery();}
 			Map<String, String> params = this.getParams(body); 
-			String response = ""; int code = 401; User user;
+			String response = ""; int code = 401; // User user;
 			
 			try {
-				user = this.isAuthenticated(params);
-				if (user != null) {
+//				user = this.isAuthenticated(params);
+//				if (user != null) {
 					String id = params.get("num");
 					String category = params.get("cat");
 					if (id != null) {
 						Post post = this.posts[Integer.parseInt(category)].get(id);
 						if (post != null) {response = post.toString(); code = 200;} 
 					}
-				} 
+//				} 
 			} catch(Exception e) {e.printStackTrace();}
 			
 			byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
@@ -359,6 +359,7 @@ public class Host implements AutoCloseable {
 			Host host = new Host(6767);
 			
 			host.start();
+			
 			
 			Scanner scn = new Scanner(System.in);
 			
